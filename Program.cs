@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.IO;
 using System.Threading;
 using System.Media;
+using static Cybersecurity_Awarenessbot.Program;
 
 namespace Cybersecurity_Awarenessbot
 {
@@ -26,6 +27,30 @@ namespace Cybersecurity_Awarenessbot
         Frustrated,
         Urgent,
         Positive
+    }
+
+    /// Tracks conversation state and security context
+    public class ConversationContext
+    {
+        // Current discussion topic (e.g., "phishing", "ransomware")
+        public string CurrentTopic { get; set; } = "";
+
+        // Risk assessment level based on conversation content
+        public ThreatLevel ThreatAssessment { get; set; } = ThreatLevel.Normal;
+
+        // Historical stack of previous discussion topics
+        public Stack<string> TopicHistory { get; } = new Stack<string>();
+
+        // Flag indicating if conversation needs follow-up steps
+        public bool RequiresFollowUp { get; set; }
+    }
+
+    // Security threat level classification system
+    public enum ThreatLevel
+    {
+        Normal,    // Regular conversation flow
+        Elevated,  // Potential security concerns detected
+        Critical   // Active security crisis identified
     }
 
     internal class Program
@@ -94,17 +119,14 @@ namespace Cybersecurity_Awarenessbot
 
         /// Ordered response strategies using delegate chaining with priority escalation
         private static readonly List<ResponseHandler> ResponseStrategies = new List<ResponseHandler>
-{
-    HandleEmergencyTrigger,      // Priority 0: Immediate crisis response
-    HandleExactMatch,            // Priority 1: Precise phrase matches
-    HandleKeywordMatch,          // Priority 2: Technical term recognition
-    HandleContextContinuation,   // Priority 3: Deep conversation context
-    HandleMultiStepProcedure,    // Priority 4: Guided troubleshooting flows
-    HandleSentimentResponse,     // Priority 5: Emotion-aware handling
-    HandleThreatPrevention,      // Priority 6: Proactive security guidance
-    HandleEducationalPrompt,     // Priority 7: Cybersecurity awareness
-    HandleDefaultResponse        // Fallback: Action-oriented guidance
-};
+        {
+            HandleEmergencyTrigger,    // Priority 1: Crisis detection
+            HandleExactMatch,          // Priority 2: Precise phrase matches
+            HandleKeywordMatch,        // Priority 3: Concept recognition
+            HandleContextContinuation, // Priority 4: Follow-up management
+            HandleSentimentResponse,   // Priority 5: Emotional adaptation
+            HandleDefaultResponse     // Fallback: General guidance       // Fallback: Action-oriented guidance
+        };
 
         /// Conversation state container with security context tracking
         public class ConversationContext
@@ -121,114 +143,144 @@ namespace Cybersecurity_Awarenessbot
         #region Core Program Flow
         static void Main(string[] args)
         {
+            // Initialize user session
             UserProfile userProfile = new UserProfile();
+            ConversationContext context = new ConversationContext();
 
-            // Initialize with visual/audio effects
+            // Start interaction sequence
             ShowBootSequence();
             GreetUser(userProfile);
-            StartChatbot(userProfile);
+            StartChatbot(userProfile, ref context);
         }
 
-        /// <summary>
-        /// Main conversation loop with sentiment analysis and context tracking
-        /// </summary>
-        private static void StartChatbot(UserProfile profile)
+
+        // Main conversation loop with sentiment analysis and context tracking
+        private static void StartChatbot(UserProfile profile, ref ConversationContext context)
         {
-            string currentTopic = "";
-            while (true)
+            while (true) // Main interaction loop
             {
-                AddDivider();
+                AddDivider(); // Visual separator
+
+                // Collect user input
                 Console.Write("\nYou: ");
                 string input = Console.ReadLine()?.Trim().ToLower() ?? "";
 
+                // Exit condition
                 if (input == "exit")
                 {
-                    TypingEffect("Stay secure! Remember to regularly update your software and review privacy settings.", 30);
+                    TypingEffect("Stay secure! Remember to regularly update...", 30);
                     break;
                 }
 
+                // Process input
                 LogMessage($"User input: {input}");
-
-                // Analyze sentiment and generate response
                 Sentiment sentiment = DetectSentiment(input);
-                string response = ProcessInput(input, profile, ref currentTopic, sentiment);
+                string response = ProcessInput(input, profile, ref context, sentiment);
 
-                // Deliver personalized response
+                // Deliver response
                 TypingEffect($"Bot: {PersonalizeResponse(response, profile)}", 30);
             }
         }
         #endregion
 
         #region Response Handlers
-        /// <summary>
-        /// Handles exact phrase matches from predefined responses
-        /// </summary>
-        private static string HandleExactMatch(string input, UserProfile profile, ref string topic, Sentiment sentiment)
+        // Detects and responds to security emergencies
+        private static string HandleEmergencyTrigger(string input, UserProfile profile,
+            ref ConversationContext context, Sentiment sentiment)
         {
-            return ExactResponses.TryGetValue(input, out string response) ? response : null;
+            // Critical security incident keywords
+            var crisisKeywords = new[] { "hacked", "breach", "ransomware" };
+
+            if (crisisKeywords.Any(kw => input.IndexOf(kw, StringComparison.OrdinalIgnoreCase) >= 0))
+            {
+                context.ThreatAssessment = ThreatLevel.Critical;
+                context.CurrentTopic = "incident_response";
+                return "🚨 Immediate action required: Disconnect devices...";
+            }
+            return null;
         }
 
-        /// <summary>
-        /// Processes cybersecurity keywords and updates user interests
-        /// </summary>
-        private static string HandleKeywordMatch(string input, UserProfile profile, ref string topic, Sentiment sentiment)
+
+        // Matches exact user queries to predefined responses
+        private static string HandleExactMatch(string input, UserProfile profile,
+            ref ConversationContext context, Sentiment sentiment)
+        {
+            return ExactResponses.TryGetValue(input, out string response)
+                ? response
+                : null;
+        }
+
+        // Handles cybersecurity keyword detection and response generation
+        private static string HandleKeywordMatch(string input, UserProfile profile,
+            ref ConversationContext context, Sentiment sentiment)
         {
             foreach (var keyword in KeywordResponses.Keys)
             {
-                if (input.Contains(keyword))
+                if (input.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0)
                 {
-                    topic = keyword;
+                    // Update conversation context
+                    context.TopicHistory.Push(context.CurrentTopic);
+                    context.CurrentTopic = keyword;
+
+                    // Track user interest
                     if (!profile.Interests.Contains(keyword))
                         profile.Interests.Add(keyword);
 
-                    return ApplySentimentTone(KeywordResponses[keyword], sentiment);
+                    return KeywordResponses[keyword];
                 }
             }
             return null;
         }
 
-        /// <summary>
-        /// Maintains conversation flow for follow-up questions
-        /// </summary>
-        private static string HandleFollowUp(string input, UserProfile profile, ref string topic, Sentiment sentiment)
-        {
-            var continuers = new[] { "more", "explain", "elaborate", "details" };
-            if (!string.IsNullOrEmpty(topic) && continuers.Any(input.Contains))
-                return $"More about {topic}: {KeywordResponses[topic]}";
 
+        // Manages follow-up requests and contextual conversations
+        private static string HandleContextContinuation(string input, UserProfile profile,
+            ref ConversationContext context, Sentiment sentiment)
+        {
+            var continuers = new[] { "more", "explain", "details" };
+            if (!string.IsNullOrEmpty(context.CurrentTopic) &&
+                continuers.Any(input.Contains))
+            {
+                return $"More about {context.CurrentTopic}: " +
+                       KeywordResponses[context.CurrentTopic];
+            }
             return null;
         }
 
         /// <summary>
-        /// Adjusts response tone based on detected sentiment
+        /// Adapts responses based on detected emotional state
         /// </summary>
-        private static string HandleSentiment(string input, UserProfile profile, ref string topic, Sentiment sentiment)
+        private static string HandleSentimentResponse(string input, UserProfile profile,
+            ref ConversationContext context, Sentiment sentiment)
         {
             var toneModifiers = new Dictionary<Sentiment, string>
             {
                 { Sentiment.Worried, "It's wise to be cautious. " },
                 { Sentiment.Curious, "Great question! " },
-                { Sentiment.Frustrated, "Let's break this down: " }
+                { Sentiment.Frustrated, "Let's break this down: " },
+                { Sentiment.Urgent, "Immediate action needed: " },
+                { Sentiment.Positive, "Great security practice: " }
             };
 
-            return toneModifiers.ContainsKey(sentiment)
-                ? toneModifiers[sentiment] + KeywordResponses.GetValueOrDefault(topic, "")
+            string keywordResponse = KeywordResponses.TryGetValue(context.CurrentTopic, out var value)
+             ? value: "";
+
+            return toneModifiers.TryGetValue(sentiment, out var modifier)
+                ? $"{modifier}{keywordResponse}"
                 : null;
         }
 
-        /// <summary>
-        /// Fallback for unrecognized input
-        /// </summary>
-        private static string HandleDefault(string input, UserProfile profile, ref string topic, Sentiment sentiment)
+
+        /// Provides fallback response when no other handlers match
+        private static string HandleDefaultResponse(string input, UserProfile profile,
+            ref ConversationContext context, Sentiment sentiment)
         {
             return "I'm not sure I understand. Could you rephrase or ask about cybersecurity topics?";
         }
         #endregion
 
         #region Support Methods
-        /// <summary>
         /// Detects user sentiment through keyword analysis
-        /// </summary>
         private static Sentiment DetectSentiment(string input)
         {
             foreach (var pair in SentimentKeywords)
@@ -236,9 +288,7 @@ namespace Cybersecurity_Awarenessbot
             return Sentiment.Neutral;
         }
 
-        /// <summary>
         /// Personalizes responses using stored user interests
-        /// </summary>
         private static string PersonalizeResponse(string response, UserProfile profile)
         {
             if (profile.Interests.Count > 0)
@@ -246,24 +296,20 @@ namespace Cybersecurity_Awarenessbot
             return response;
         }
 
-        /// <summary>
         /// Processes input through all response strategies
-        /// </summary>
-        private static string ProcessInput(string input, UserProfile profile, ref string topic, Sentiment sentiment)
+        private static string ProcessInput(string input, UserProfile profile, ref ConversationContext topic, Sentiment sentiment)
         {
             foreach (var strategy in ResponseStrategies)
             {
                 string result = strategy(input, profile, ref topic, sentiment);
                 if (!string.IsNullOrEmpty(result)) return result;
             }
-            return HandleDefault(input, profile, ref topic, sentiment);
+            return HandleDefaultResponse(input, profile, ref topic, sentiment);
         }
         #endregion
 
         #region UI Helpers
-        /// <summary>
         /// Displays text with typing animation
-        /// </summary>
         private static void TypingEffect(string text, int delayMs = 30)
         {
             foreach (char c in text)
@@ -274,9 +320,7 @@ namespace Cybersecurity_Awarenessbot
             Console.WriteLine();
         }
 
-        /// <summary>
         /// Creates visual separator in console
-        /// </summary>
         private static void AddDivider()
         {
             Console.ForegroundColor = ConsoleColor.DarkGray;
@@ -284,9 +328,7 @@ namespace Cybersecurity_Awarenessbot
             Console.ResetColor();
         }
 
-        /// <summary>
         /// Initial boot sequence with ASCII art and audio
-        /// </summary>
         private static void ShowBootSequence()
         {
             Thread greetingThread = new Thread(PlayVoiceGreeting);
@@ -295,9 +337,7 @@ namespace Cybersecurity_Awarenessbot
             greetingThread.Join();
         }
 
-        /// <summary>
         /// Plays startup audio if available
-        /// </summary>
         private static void PlayVoiceGreeting()
         {
             string filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "greeting.wav");
@@ -310,9 +350,7 @@ namespace Cybersecurity_Awarenessbot
             catch { /* Gracefully handle audio errors */ }
         }
 
-        /// <summary>
         /// Shows animated ASCII art
-        /// </summary>
         private static void DisplayASCIIArt()
         {
             string art = @"[ASCII ART FROM ORIGINAL CODE]";
@@ -325,9 +363,7 @@ namespace Cybersecurity_Awarenessbot
             Console.ResetColor();
         }
 
-        /// <summary>
         /// Collects and stores user name
-        /// </summary>
         private static void GreetUser(UserProfile profile)
         {
             TypingEffect("\nWelcome to Cybersecurity Assistant! What's your name?", 30);
@@ -335,9 +371,7 @@ namespace Cybersecurity_Awarenessbot
             TypingEffect($"Hello {profile.Name}! Ask me anything about digital safety.", 30);
         }
 
-        /// <summary>
         /// Logs interactions for debugging
-        /// </summary>
         private static void LogMessage(string message)
         {
             try
