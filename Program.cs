@@ -201,13 +201,39 @@ namespace Cybersecurity_Awarenessbot
         }
 
 
-        // Matches exact user queries to predefined responses
-        private static string HandleExactMatch(string input, UserProfile profile,
-            ref ConversationContext context, Sentiment sentiment)
+        // Matches exact/almost user queries to predefined responses
+        private static string HandleExactMatch(string input, UserProfile profile, ref ConversationContext context, Sentiment sentiment)
         {
-            return ExactResponses.TryGetValue(input, out string response)
-                ? response
-                : null;
+            // Cache ordered keys on first use for performance
+            IEnumerable<string> GetOrderedKeys()
+            {
+                return ExactResponses.Keys.OrderByDescending(k => k.Length);
+            }
+
+            // Check for longest possible matches first
+            foreach (var key in GetOrderedKeys())
+            {
+                if (input.Trim().Length > 0)
+                {
+                    if (key.Contains(input.Trim().ToLower()))
+                    {
+                        // Update conversation context with matched phrase
+                        //topic = key;
+                        return ExactResponses[key];
+                    }
+                    else
+                    {
+                        return "i dont understand your question";
+                    }
+
+                }
+                else
+                {
+                    return "Ask a question";
+                }
+
+            }
+            return null;
         }
 
         // Handles cybersecurity keyword detection and response generation
@@ -371,7 +397,7 @@ namespace Cybersecurity_Awarenessbot
             foreach (char c in asciiArt)
             {
                 Console.Write(c);
-                Thread.Sleep(5); // Slow reveal effect
+                Thread.Sleep(1); // Slow reveal effect
             }
             Console.WriteLine();
             Console.ResetColor();
