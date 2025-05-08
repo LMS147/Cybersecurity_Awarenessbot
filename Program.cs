@@ -247,9 +247,7 @@ namespace Cybersecurity_Awarenessbot
             return null;
         }
 
-        /// <summary>
         /// Adapts responses based on detected emotional state
-        /// </summary>
         private static string HandleSentimentResponse(string input, UserProfile profile,
             ref ConversationContext context, Sentiment sentiment)
         {
@@ -350,16 +348,32 @@ namespace Cybersecurity_Awarenessbot
             catch { /* Gracefully handle audio errors */ }
         }
 
-        /// Shows animated ASCII art
+        // Displays ASCII art with a slow reveal effect to enhance the visual appeal of the chatbot.
         private static void DisplayASCIIArt()
         {
-            string art = @"[ASCII ART FROM ORIGINAL CODE]";
+            // Define the ASCII art string
+            string asciiArt = @"
+ ██████╗██╗   ██╗██████╗ ███████╗██████╗ ███████╗███████╗ ██████╗██╗   ██╗██████╗ ██╗████████╗██╗   ██╗   
+██╔════╝╚██╗ ██╔╝██╔══██╗██╔════╝██╔══██╗██╔════╝██╔════╝██╔════╝██║   ██║██╔══██╗██║╚══██╔══╝╚██╗ ██╔╝   
+██║      ╚████╔╝ ██████╔╝█████╗  ██████╔╝███████╗█████╗  ██║     ██║   ██║██████╔╝██║   ██║    ╚████╔╝    
+██║       ╚██╔╝  ██╔══██╗██╔══╝  ██╔══██╗╚════██║██╔══╝  ██║     ██║   ██║██╔══██╗██║   ██║     ╚██╔╝     
+╚██████╗   ██║   ██████╔╝███████╗██║  ██║███████║███████╗╚██████╗╚██████╔╝██║  ██║██║   ██║      ██║      
+ ╚═════╝   ╚═╝   ╚═════╝ ╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝   ╚═╝      ╚═╝      
+ █████╗ ██╗    ██╗ █████╗ ██████╗ ███████╗███╗   ██╗███████╗███████╗███████╗    ██████╗  ██████╗ ████████╗
+██╔══██╗██║    ██║██╔══██╗██╔══██╗██╔════╝████╗  ██║██╔════╝██╔════╝██╔════╝    ██╔══██╗██╔═══██╗╚══██╔══╝
+███████║██║ █╗ ██║███████║██████╔╝█████╗  ██╔██╗ ██║█████╗  ███████╗███████╗    ██████╔╝██║   ██║   ██║   
+██╔══██║██║███╗██║██╔══██║██╔══██╗██╔══╝  ██║╚██╗██║██╔══╝  ╚════██║╚════██║    ██╔══██╗██║   ██║   ██║   
+██║  ██║╚███╔███╔╝██║  ██║██║  ██║███████╗██║ ╚████║███████╗███████║███████║    ██████╔╝╚██████╔╝   ██║   
+╚═╝  ╚═╝ ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚══════╝╚══════╝╚══════╝    ╚═════╝  ╚═════╝    ╚═╝   
+    ";
+            // Display the ASCII art with a slow reveal effect.
             Console.ForegroundColor = ConsoleColor.Cyan;
-            foreach (char c in art)
+            foreach (char c in asciiArt)
             {
                 Console.Write(c);
-                Thread.Sleep(5);
+                Thread.Sleep(5); // Slow reveal effect
             }
+            Console.WriteLine();
             Console.ResetColor();
         }
 
