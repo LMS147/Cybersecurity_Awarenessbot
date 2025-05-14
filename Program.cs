@@ -201,40 +201,88 @@ namespace Cybersecurity_Awarenessbot
         }
 
 
-        // Matches exact/almost user queries to predefined responses
         private static string HandleExactMatch(string input, UserProfile profile, ref ConversationContext context, Sentiment sentiment)
         {
-            // Cache ordered keys on first use for performance
-            IEnumerable<string> GetOrderedKeys()
+            // Clean and normalize the input
+            input = input?.Trim().ToLower();
+
+            // Handle null or whitespace input
+            if (string.IsNullOrEmpty(input))
             {
-                return ExactResponses.Keys.OrderByDescending(k => k.Length);
+                return "Please ask a cybersecurity-related question.";
             }
+
+            // Use a local variable to hold the ordered keys.
+            IEnumerable<string> orderedKeys = ExactResponses.Keys.OrderByDescending(k => k.Length);
 
             // Check for longest possible matches first
-            foreach (var key in GetOrderedKeys())
+            foreach (var key in orderedKeys)
             {
-                if (input.Trim().Length > 0)
+                if (input.Contains(key))
                 {
-                    if (key.Contains(input.Trim().ToLower()))
-                    {
-                        // Update conversation context with matched phrase
-                        //topic = key;
-                        return ExactResponses[key];
-                    }
-                    else
-                    {
-                        return "i dont understand your question";
-                    }
-
+                    // Update conversation context with the matched phrase.  This provides
+                    // more specific context for subsequent turns in the conversation.
+                    context.CurrentTopic = key;
+                    context.TopicHistory.Push(key); // Add to history to track conversation flow
+                    return ExactResponses[key]; // Return the response for the exact match
                 }
-                else
-                {
-                    return "Ask a question";
-                }
-
             }
-            return null;
+
+            // If no direct substring match, check for similarity to handle near matches
+            foreach (var key in orderedKeys)
+            {
+                if (ComputeSimilarity(input, key) >= 0.8) // Use a similarity threshold (e.g., 0.8)
+                {
+                    // Update conversation context even for similar matches
+                    context.CurrentTopic = key;
+                    context.TopicHistory.Push(key);
+                    return ExactResponses[key]; // Return the response for the closest match
+                }
+            }
+            return null; // Return null if no exact or similar match is found
         }
+
+        // Computes the similarity between two strings using Levenshtein distance.
+        private static double ComputeSimilarity(string s1, string s2)
+        {
+            if (string.IsNullOrEmpty(s1) || string.IsNullOrEmpty(s2))
+            {
+                return 0.0; // Handle null or empty strings as having no similarity
+            }
+
+            int maxLength = Math.Max(s1.Length, s2.Length);
+            int editDistance = ComputeLevenshteinDistance(s1, s2);
+            return 1.0 - (double)editDistance / maxLength; // Calculate similarity as 1 - (normalized distance)
+        }
+
+        // Computes the Levenshtein distance between two strings.
+        private static int ComputeLevenshteinDistance(string s1, string s2)
+        {
+            if (string.IsNullOrEmpty(s1)) return string.IsNullOrEmpty(s2) ? 0 : s2.Length;
+            if (string.IsNullOrEmpty(s2)) return s1.Length;
+
+            int[,] matrix = new int[s1.Length + 1, s2.Length + 1];
+
+            // Initialize the matrix
+            for (int i = 0; i <= s1.Length; i++) matrix[i, 0] = i;
+            for (int j = 0; j <= s2.Length; j++) matrix[0, j] = j;
+
+            // Calculate Levenshtein distance
+            for (int i = 1; i <= s1.Length; i++)
+            {
+                for (int j = 1; j <= s2.Length; j++)
+                {
+                    int cost = (s2[j - 1] == s1[i - 1]) ? 0 : 1; // Cost of substitution
+                    matrix[i, j] = Math.Min(
+                        Math.Min(matrix[i - 1, j] + 1, matrix[i, j - 1] + 1), // Deletion and insertion
+                        matrix[i - 1, j - 1] + cost);                       // Substitution
+                }
+            }
+            return matrix[s1.Length, s2.Length]; // Return the distance
+        }
+
+
+
 
         // Handles cybersecurity keyword detection and response generation
         private static string HandleKeywordMatch(string input, UserProfile profile,
