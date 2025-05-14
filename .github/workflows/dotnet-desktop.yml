@@ -1,0 +1,85 @@
+name: CyberSecurity_Awarenessbot
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        configuration: [Debug, Release]
+
+    runs-on: windows-latest
+
+    env:
+      Solution_Name: CyberSecurity_Awarenessbot.sln
+      Test_Project_Path: CyberSecurity_Awarenessbot.Tests\CyberSecurity_Awarenessbot.Tests.csproj
+      Wap_Project_Directory: CyberSecurity_Awarenessbot.Package
+      Wap_Project_Path: CyberSecurity_Awarenessbot.Package\CyberSecurity_Awarenessbot.Package.wapproj
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Cache NuGet Packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
+    - name: Install .NET Core
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 9.0.x # Adjust to your project's .NET version
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Validate Paths
+      run: |
+        if (-not (Test-Path -Path "${{ env.Solution_Name }}")) {
+          Write-Error "❌ Solution file not found!"
+          exit 1
+        }
+        if (-not (Test-Path -Path "${{ env.Test_Project_Path }}")) {
+          Write-Error "❌ Test project file not found!"
+          exit 1
+        }
+        if (-not (Test-Path -Path "${{ env.Wap_Project_Path }}")) {
+          Write-Error "❌ WAP project file not found!"
+          exit 1
+        }
+      shell: pwsh
+
+    - name: Restore Dependencies
+      run: dotnet restore
+
+    - name: Execute Unit Tests
+      run: dotnet test ${{ env.Test_Project_Path }} --configuration ${{ matrix.configuration }} --no-restore
+
+    - name: Decode the Signing Certificate
+      run: |
+        $certificatePath = "$env:Wap_Project_Directory\GitHubActionsWorkflow.pfx"
+        $pfx_cert_byte = [System.Convert]::FromBase64String("${{ secrets.Base64_Encoded_Pfx }}")
+        [IO.File]::WriteAllBytes("$certificatePath", $pfx_cert_byte)
+
+    - name: Create the App Package
+      run: msbuild $env:Wap_Project_Path /p:Configuration=$env:Configuration /p:UapAppxPackageBuildMode=StoreUpload /p:AppxBundle=Always /p:AppxBundlePlatforms="x86|x64" /p:PackageCertificateKeyFile="$env:Wap_Project_Directory\GitHubActionsWorkflow.pfx" /p:PackageCertificatePassword=${{ secrets.Pfx_Key }}
+      env:
+        Configuration: ${{ matrix.configuration }}
+
+    - name: Remove the Signing Certificate
+      run: Remove-Item -Path "$env:Wap_Project_Directory\GitHubActionsWorkflow.pfx"
+
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: MSIX Package
+        path: ${{ env.Wap_Project_Directory }}\AppPackages
